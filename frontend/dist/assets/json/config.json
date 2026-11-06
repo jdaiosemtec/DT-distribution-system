@@ -1,0 +1,36 @@
+{
+    "corporation": {
+        "id": "42506e19-23ce-41b0-86f8-08c4c21025a9",
+        "name": "DigitalTwin",
+        "code": "DigitalTwin"
+    },
+    "app": {
+        "name": "Digital Twin",
+        "title": "Digital Twin",
+        "version": "1.0.0",
+        "appId": "6c2f5eecc9a6aa254a14aeebaf441f6bb26c1cb3",
+        "appSecret": "9599f66fecb598fbd419ca66ece9d37ed0c82d65",
+        "url": "http://210.13.55.114:9903",
+        "ssoUrl": "",
+        "logo": {
+            "light": "assets/img/login/Detroit-light.png",
+            "dark": "assets/img/login/Detroit-dark.png"
+        }
+    },
+    "api": {
+        "url": "",
+        "ssoUrl": "",
+        "center_api": "/api/center",
+        "user_api": "/api/user",
+        "epanet_api": ""
+    },
+    "default_branch": "/dashboard/overview",
+    "map": {
+        "type": "amap",
+        "center": {
+            "lat": 44.099985,
+            "lon": 289.803639
+        },
+        "zoom": 14
+    }
+}

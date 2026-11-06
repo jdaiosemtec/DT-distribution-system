@@ -1,0 +1,1 @@
+import{W as o}from"./chunk-QV2UUW7U.js";var a=(()=>{let t=class t{constructor(){this.expand=!0,this.account=!1}};t.\u0275fac=function(e){return new(e||t)},t.\u0275prov=o({token:t,factory:t.\u0275fac,providedIn:"root"});let r=t;return r})();export{a};

@@ -1,0 +1,1 @@
+import{Tc as i}from"./chunk-B572BAQL.js";import{Te as s,X as r,ba as e}from"./chunk-QV2UUW7U.js";var l=(()=>{let t=class t{};t.\u0275fac=function(m){return new(m||t)},t.\u0275mod=e({type:t}),t.\u0275inj=r({imports:[s.forChild(),i,i]});let o=t;return o})();export{l as a};

@@ -1,0 +1,5 @@
+frontend/build/
+local/data/
+local/local-login.json
+service/data/
+node_modules/

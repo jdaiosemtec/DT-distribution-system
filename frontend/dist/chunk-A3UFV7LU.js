@@ -1,0 +1,1 @@
+import{Pa as i,aa as n,gc as r}from"./chunk-QV2UUW7U.js";var a=(()=>{let e=class e{constructor(){}ngOnInit(){}};e.\u0275fac=function(o){return new(o||e)},e.\u0275cmp=n({type:e,selectors:[["app-video"]],decls:1,vars:0,template:function(o,p){o&1&&i(0,"router-outlet")},dependencies:[r]});let t=e;return t})();export{a};

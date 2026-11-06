@@ -1,0 +1,9 @@
+{
+  "name": "avaris-ds-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Avaris DS service of the Digital Twin Supply Model pages (water distribution, OWA EPANET 2.3 engine)",
+  "main": "src/server.js",
+  "scripts": { "start": "node src/server.js", "test": "node test/smoke.js" },
+  "engines": { "node": ">=22.5" }
+}
