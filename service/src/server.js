@@ -80,23 +80,24 @@ function paramValues(out, net, kind, param, period) {
   const v = (kind === 'node' ? NODE_PARAM : LINK_PARAM)[param]; if (!v) throw Object.assign(new Error(`Unknown ${kind} parameter ${param}`), { status: 400 });
   const a = out.values(kind, v, period);
   if (param !== 'hydraulicSlope') return a;
-  // hydraulic slope: unit headloss (per 1000 length units) as length per length; 0 for pumps and valves
-  const r = new Float32Array(a.length); for (let i = 0; i < a.length; i++) { const l = net.doc.linkByName.get(U(out.linkIds[i])); r[i] = l && l.type === 'PIPE' ? Math.abs(a[i]) / 1000 : 0; } return r;
+  // hydraulic slope as the DEMO computed it: unit headloss (per 1000 length units) divided by the pipe length; 0 for pumps and valves
+  const r = new Float32Array(a.length); for (let i = 0; i < a.length; i++) r[i] = slopeOf(net, out.linkIds[i], a[i]); return r;
 }
+function slopeOf(net, name, hl) { const l = net.doc.linkByName.get(U(name)); const L = l && l.type === 'PIPE' ? Number(l.values[3]) : 0; return L > 0 ? hl / L : 0; }
 function seriesOf(out, net, kind, param, index) {
   const v = (kind === 'node' ? NODE_PARAM : LINK_PARAM)[param]; if (!v) throw Object.assign(new Error(`Unknown ${kind} parameter ${param}`), { status: 400 });
   const s = out.series(kind, v, index);
-  if (param === 'hydraulicSlope') { const l = net.doc.linkByName.get(U(out.linkIds[index])); return s.map(x => (l && l.type === 'PIPE' ? Math.abs(x) / 1000 : 0)); }
+  if (param === 'hydraulicSlope') return s.map(x => slopeOf(net, out.linkIds[index], x));
   return s;
 }
-// domain-wide maxima of every parameter (scenario.output, used for the legends)
+// domain-wide maxima of every parameter (scenario.output, used for the legends): the largest value, signed (DEMO)
 function outputMaxima(out, net) {
   const r3 = (x) => Math.round(x * 1000) / 1000; const node = {}, link = {};
   for (const p of ['demand', 'head', 'pressure', 'waterQuality', 'waterAge']) node[p] = r3(maxOf(out, net, 'node', p));
   for (const p of ['flow', 'velocity', 'headloss', 'hydraulicSlope', 'avgWaterQuality', 'avgWaterAge', 'status', 'setting', 'reactionRate', 'friction']) link[p] = r3(maxOf(out, net, 'link', p));
   return { node, link };
 }
-function maxOf(out, net, kind, param) { let m = 0; for (let p = 0; p < out.periods; p++) { const a = paramValues(out, net, kind, param, p); for (let i = 0; i < a.length; i++) { const x = Math.abs(a[i]); if (x > m && Number.isFinite(x)) m = x; } } return m; }
+function maxOf(out, net, kind, param) { let m = -Infinity; for (let p = 0; p < out.periods; p++) { const a = paramValues(out, net, kind, param, p); for (let i = 0; i < a.length; i++) { const x = a[i]; if (x > m && Number.isFinite(x)) m = x; } } return Number.isFinite(m) ? m : 0; }
 
 function scenarioRun(sid) {
   const sc = db.scenarios.get(sid); if (!sc) throw Object.assign(new Error('Scenario not found'), { status: 404 });
@@ -328,8 +329,14 @@ route('POST', '/output/variable/:param/period/:a/:b/:kinds', async (req, res, p)
 // ---- analyses
 const baseOf = (b) => { const sc = db.scenarios.get(sidOf(b)); if (!sc) throw Object.assign(new Error('Scenario not found'), { status: 404 }); return sc; };
 const mainNet = () => { const i = db.inputs.all().find(o => o.main) || db.inputs.all()[0]; if (!i) throw Object.assign(new Error('No model has been uploaded.'), { status: 400 }); return network.get(i); };
-route('POST', '/analysis/close/valve', async (req, res) => { const b = await readJson(req); ok(res, analysis.closeValves(b.scenario ? scenarioRun(sidOf(b)).net : mainNet(), b)); });
-route('POST', '/analysis/quality/close/valves', async (req, res) => { const b = await readJson(req); ok(res, analysis.qualityValves(b.scenario ? scenarioRun(sidOf(b)).net : mainNet(), b)); });
+// the valve searches get no scenario: the flow directions come from the main model's newest completed run (if any)
+function netAndFlows(b) {
+  if (b.scenario) { const x = scenarioRun(sidOf(b)); return [x.net, x.out]; }
+  const net = mainNet(); const done = db.scenarios.byInput(net.input.id).filter(s => s.status === 3 && s.category !== 'TEMP').sort((a, c) => (a.updatedAt < c.updatedAt ? 1 : -1));
+  for (const s of done) { const r = engine.reader(s.id); if (r) return [net, r]; } return [net, null];
+}
+route('POST', '/analysis/close/valve', async (req, res) => { const b = await readJson(req); const [net, out] = netAndFlows(b); ok(res, analysis.closeValves(net, b, out)); });
+route('POST', '/analysis/quality/close/valves', async (req, res) => { const b = await readJson(req); const [net, out] = netAndFlows(b); ok(res, analysis.qualityValves(net, b, out)); });
 route('POST', '/analysis/low/pressure', async (req, res) => { const b = await readJson(req); const x = scenarioRun(sidOf(b)); ok(res, analysis.lowPressure(x.net, needOut(x), b, b.periodIndex | 0)); });
 route('POST', '/analysis/water/quality', async (req, res) => { const b = await readJson(req); const x = scenarioRun(sidOf(b)); ok(res, analysis.waterQuality(x.net, needOut(x), b, b.periodIndex | 0)); });
 const nameOf = (v) => (typeof v === 'string' ? v : v && (v.name || v.code || v.node_code || v.burst_node || (v.properties && v.properties.name)));

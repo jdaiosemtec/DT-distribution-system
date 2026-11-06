@@ -207,7 +207,9 @@ function engineText(doc, edits = {}) {
     for (const e of edits.extraDemands) section(d, 'DEMANDS').push(`${e.node} ${fmt(e.demand)}`);
   }
   if (edits.times) { const T = section(d, 'TIMES'); for (const [k, v] of Object.entries(edits.times)) { if (v === undefined || v === null || v === '') continue; const key = U(k);
-    for (let i = T.length - 1; i >= 0; i--) { const t = tok(T[i]).map(U); const kk = t.length > 1 && /^(TIMESTEP|START|STATISTIC)$/.test(t[1]) && t[0] !== 'STATISTIC' ? t[0] + ' ' + t[1] : t[0]; if (kk === key) T.splice(i, 1); }
+    // EPANET matches keywords by their first letters (REPORTING TIMESTEP = REPORT TIMESTEP): compare 4-letter stems
+    const stem = (a) => a.map(w => w.slice(0, 4)).join(' '); const ks = key.split(/\s+/);
+    for (let i = T.length - 1; i >= 0; i--) { const t = tok(T[i]).map(U); const two = ks.length > 1; if (stem(t.slice(0, two ? 2 : 1)) === stem(ks) && (two || !/^(TIME|STAR)/.test(t[1] || ''))) T.splice(i, 1); }
     T.push(`${k} ${v}`); } }
   if (edits.options) { const O = section(d, 'OPTIONS'); for (const [k, v] of Object.entries(edits.options)) { if (v === undefined || v === null || v === '') continue; const key = U(k);
     for (let i = O.length - 1; i >= 0; i--) { const t = tok(O[i]).map(U).join(' '); if (t.startsWith(key + ' ') || t === key) O.splice(i, 1); } O.push(`${k} ${v}`); } }

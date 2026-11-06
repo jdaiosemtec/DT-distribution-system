@@ -10,7 +10,7 @@
   Engine OWA EPANET 2.3: `engine/avaris_ds_engine.c`, binaries `service/bin/linux`, `service/bin/win` (build: `engine/build.sh`).
 - Local test on the user's PC: `start-local.cmd` → http://localhost:8090 (service :8016); other APIs go to the DEMO.
   Ports differ from the collection test (8080 / 8015) so both can run. The PC is only a test bench; targets OCI / AWS.
-- Tests: `node service/test/smoke.js [model.inp]` (Net3 by default; `models/demo526/526.inp` when available) – run before
-  every delivery; old features must keep working.
+- Tests (run before every delivery; old features must keep working): `node service/test/smoke.js` (Net3),
+  `node service/test/smoke.js models/demo526/526.inp`, `node service/test/demo526.js` (results vs. DEMO reference values).
 - Replies to the user in Chinese; UI text and code English only.
 - DEMO front end cannot be downloaded from the built-in browser: the user runs `tools/capture-demo-*.js` in Chrome.

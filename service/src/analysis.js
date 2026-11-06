@@ -78,30 +78,30 @@ function minCut(net, startNodes, startLinks, invalid) {
   return { valves: [...valves.values()], pipes, nodes };
 }
 
-function closeValves(net, body) {
+// in_node / out_node of a link record: along the flow of the run when there is one (DEMO), else the link direction
+function oriented(net, out, l) {
+  let q = 1; if (out) { const i = out.linkIndex.get(U(l.name)); if (i !== undefined) q = out.values('link', 'flow', 0)[i]; }
+  return q < 0 ? { in_node: l.to, out_node: l.from } : { in_node: l.from, out_node: l.to };
+}
+function isolationAnswer(net, r, out) {
+  const valves = r.valves.map(v => linkRec(net, v.l, oriented(net, out, v.l)));
+  // the DEMO lists the valves to close among the pipes of the area as well
+  const pipes = [...r.pipes.map(p => linkRec(net, p.l, oriented(net, out, p.l))), ...valves];
+  return { valves, pipes, users: [] };
+}
+function closeValves(net, body, out) {
   const code = body.code, type = U(body.type || 'PIPE');
   let startLinks = [], startNodes = [];
   if (type === 'JUNCTION' || type === 'NODE') { if (!net.doc.nodeByName.has(U(code))) throw bad(`Junction ${code} was not found.`); startNodes = [code]; }
   else { const l = net.doc.linkByName.get(U(code)); if (!l) throw bad(`Pipe ${code} was not found.`); startLinks = [l]; }
-  const r = isolate(net, startNodes, startLinks, body.invalid_valves, U(body.close_type || 'MIN_RANGE'));
-  // in_node: the side towards the isolated area, out_node: the other side (DEMO field names)
-  return {
-    valves: r.valves.map(v => linkRec(net, v.l, { in_node: v.from === U(v.l.from) ? v.l.from : v.l.to, out_node: v.from === U(v.l.from) ? v.l.to : v.l.from })),
-    pipes: r.pipes.map(p => linkRec(net, p.l, { in_node: p.from === U(p.l.from) ? p.l.from : p.l.to, out_node: p.from === U(p.l.from) ? p.l.to : p.l.from })),
-    users: [],
-  };
+  return isolationAnswer(net, isolate(net, startNodes, startLinks, body.invalid_valves, U(body.close_type || 'MIN_RANGE')), out);
 }
 
-function qualityValves(net, body) {
+function qualityValves(net, body, out) {
   const nodes = (body.node_codes || []).filter(n => net.doc.nodeByName.has(U(n)));
   if (!nodes.length) return { valves: [], pipes: [], users: [] };
   // the contaminated nodes are one area: start from all of them
-  const r = isolate(net, nodes, [], body.invalid_valves, 'MIN_RANGE');
-  return {
-    valves: r.valves.map(v => linkRec(net, v.l, { in_node: v.from === U(v.l.from) ? v.l.from : v.l.to, out_node: v.from === U(v.l.from) ? v.l.to : v.l.from })),
-    pipes: r.pipes.map(p => linkRec(net, p.l, { in_node: p.from === U(p.l.from) ? p.l.from : p.l.to, out_node: p.from === U(p.l.from) ? p.l.to : p.l.from })),
-    users: [],
-  };
+  return isolationAnswer(net, isolate(net, nodes, [], body.invalid_valves, 'MIN_RANGE'), out);
 }
 
 // ------------------------------------------------------------------------------------------------ flow-based searches
@@ -111,12 +111,13 @@ function snapshot(out, period) {
   return { flow: g('link', 'flow'), vel: g('link', 'velocity'), hl: g('link', 'headloss'), head: g('node', 'head'), pres: g('node', 'pressure'),
     li: (name) => out.linkIndex.get(U(name)), ni: (name) => out.nodeIndex.get(U(name)) };
 }
-function nodeLinks(net, name) {
+// links bringing water in / taking it away at the period (DEMO); link direction when there are no results
+function nodeLinks(net, name, s) {
   const ins = [], outs = [];
-  for (const e of net.adj.get(U(name)) || []) (e.dir === 1 ? outs : ins).push(e.link.name);   // by link direction (from -> to)
+  for (const e of net.adj.get(U(name)) || []) { const q = s ? s.flow[s.li(e.link.name)] * e.dir : e.dir; (q > 0 ? outs : ins).push(e.link.name); }
   return { in_links: ins, out_links: outs };
 }
-function slope(l, hl) { const L = Number(l.values[3]); return l.type === 'PIPE' && L > 0 ? Math.abs(hl) / 1000 : 0; }   // unit headloss -> m/m (ft/ft)
+function slope(l, hl) { const L = Number(l.values[3]); return l.type === 'PIPE' && L > 0 ? hl / L : 0; }   // DEMO definition: unit headloss / length
 
 function lowPressure(net, out, body, period = 0) {
   const name = body.low_pressure; if (!net.doc.nodeByName.has(U(name))) throw bad(`Node ${name} was not found.`);
@@ -126,7 +127,7 @@ function lowPressure(net, out, body, period = 0) {
   for (let step = 0; step < 100000; step++) {
     seen.add(cur);
     const nn = net.doc.nodeByName.get(cur); const i = s.ni(nn.name);
-    nodes.push(nodeRec(net, nn.name, Object.assign(nodeLinks(net, nn.name), { head: s.head[i], pressure: s.pres[i] })));
+    nodes.push(nodeRec(net, nn.name, Object.assign(nodeLinks(net, nn.name, s), { head: s.head[i], pressure: s.pres[i] })));
     if (isSource.has(cur)) { plant = nodes.pop(); break; }
     // the link bringing the most water into this node
     let best = null, bq = 0;
@@ -156,12 +157,15 @@ function waterQuality(net, out, body, period = 0) {
       if (upstream ? !(q < -1e-9) : !(q > 1e-9)) continue;
       const v = Math.abs(s.vel[li]); const L = e.link.type === 'PIPE' ? Number(e.link.values[3]) || 0 : 0;
       const dt = L > 0 ? (v > 1e-9 ? L / v : Infinity) : 0;
-      const nt = t + dt; if (nt > limit) continue;
-      const k = U(e.link.name); if (!seenL.has(k)) { seenL.add(k); pipes.push(linkRec(net, e.link, { in_node: upstream ? e.other : n, out_node: upstream ? n : e.other, flow: s.flow[li], velocity: s.vel[li], time: nt })); }
-      if (nt < (time.get(e.other) ?? Infinity)) { time.set(e.other, nt); heap.push([nt, e.other]); }
+      // the pipe counts when the water reaches its start within the duration (DEMO); its far end is followed only
+      // when it is reached within the duration as well
+      const nt = t + dt; const k = U(e.link.name);
+      if (!seenL.has(k)) { seenL.add(k); pipes.push(linkRec(net, e.link, { in_node: upstream ? e.other : n, out_node: upstream ? n : e.other, flow: s.flow[li], velocity: s.vel[li], time: Number.isFinite(nt) ? nt : null })); }
+      if (nt <= limit && nt < (time.get(e.other) ?? Infinity)) { time.set(e.other, nt); heap.push([nt, e.other]); }
     }
   }
-  const nodes = [...done].filter(n => n !== U(name)).map(n => nodeRec(net, net.doc.nodeByName.get(n).name, Object.assign(nodeLinks(net, n), { time: time.get(n) })));
+  const reached = new Set(); for (const p of pipes) for (const n of [p.in_node, p.out_node]) if (U(n) !== U(name)) reached.add(U(n));
+  const nodes = [...reached].map(n => nodeRec(net, net.doc.nodeByName.get(n).name, Object.assign(nodeLinks(net, n, s), { time: time.get(n) ?? null })));
   return { pipes, nodes };
 }
 

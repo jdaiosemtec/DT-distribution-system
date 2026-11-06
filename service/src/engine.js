@@ -46,7 +46,7 @@ function scenarioFromDoc(doc) {
     let h; if (x.includes(':')) { const p = x.split(':').map(Number); h = p[0] + (p[1] || 0) / 60 + (p[2] || 0) / 3600; } else h = Number(x);
     const u = (s[1] || '').toUpperCase(); if (u.startsWith('MIN')) h /= 60; else if (u.startsWith('SEC')) h /= 3600; else if (u.startsWith('DAY')) h *= 24;
     if (!x.includes(':') && !u) h = h; return Number.isFinite(h) ? String(Math.round(h * 1e6) / 1e6) : undefined; };
-  const n = (v) => (v === undefined || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : v);
+  const n = (v) => (v === undefined || v === null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : v);
   const unb = String(O.UNBALANCED || 'STOP').split(/\s+/);
   const q = String(O.QUALITY || 'NONE').split(/\s+/);
   return {
